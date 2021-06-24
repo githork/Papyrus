@@ -1,0 +1,176 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Malfrador <malfrador@gmail.com>
+Date: Thu, 24 Jun 2021 11:00:24 +0200
+Subject: [PATCH] Add instanced worlds
+
+
+diff --git a/src/main/java/net/minecraft/server/MinecraftServer.java b/src/main/java/net/minecraft/server/MinecraftServer.java
+index ba7fb1b1ecbbe403784907a3c6277e8eaaaa2c02..495ee54e44c3392da3a241ec9f6cfa1d5e7e3b47 100644
+--- a/src/main/java/net/minecraft/server/MinecraftServer.java
++++ b/src/main/java/net/minecraft/server/MinecraftServer.java
+@@ -681,7 +681,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+             }
+ 
+             worlddata.setModdedInfo(this.getServerModName(), this.getModdedStatus().isPresent());
+-            this.initWorld(world, worlddata, worldData, worlddata.worldGenSettings());
++            this.initWorld(world, worlddata, worldData, worlddata.worldGenSettings(), false);
+ 
+             this.levels.put(world.dimension(), world);
+             this.getPlayerList().setLevel(world);
+@@ -720,7 +720,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     protected void forceDifficulty() {}
+ 
+     // CraftBukkit start
+-    public void initWorld(ServerLevel worldserver, ServerLevelData iworlddataserver, WorldData saveData, WorldGenSettings generatorsettings) {
++    public void initWorld(ServerLevel worldserver, ServerLevelData iworlddataserver, WorldData saveData, WorldGenSettings generatorsettings, boolean instanced) {
+         boolean flag = generatorsettings.isDebug();
+         // CraftBukkit start
+         if (worldserver.generator != null) {
+@@ -732,7 +732,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         this.server.getPluginManager().callEvent(new org.bukkit.event.world.WorldInitEvent(worldserver.getWorld())); // CraftBukkit - SPIGOT-5569
+         if (!iworlddataserver.isInitialized()) {
+             try {
+-                MinecraftServer.setInitialSpawn(worldserver, iworlddataserver, generatorsettings.generateBonusChest(), flag);
++                MinecraftServer.setInitialSpawn(worldserver, iworlddataserver, generatorsettings.generateBonusChest(), flag, instanced);
+                 iworlddataserver.setInitialized(true);
+                 if (flag) {
+                     this.setupDebugLevel(this.worldData);
+@@ -754,7 +754,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+     }
+     // CraftBukkit end
+ 
+-    private static void setInitialSpawn(ServerLevel world, ServerLevelData worldProperties, boolean bonusChest, boolean debugWorld) {
++    private static void setInitialSpawn(ServerLevel world, ServerLevelData worldProperties, boolean bonusChest, boolean debugWorld, boolean instanced) {
++        if (instanced) { // Papyrus - Set the world spawn somewhere, as its handled by plugins anyways
++            worldProperties.setSpawn(BlockPos.ZERO.above(64), 0.0F);
++            return;
++        }
+         if (debugWorld) {
+             worldProperties.setSpawn(BlockPos.ZERO.above(80), 0.0F);
+         } else {
+diff --git a/src/main/java/net/minecraft/server/level/ServerChunkCache.java b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+index 958b7044c196ebd66f60391c33c64ad2ff82d4e8..548c58f17693004553ca281350c75523608a21a7 100644
+--- a/src/main/java/net/minecraft/server/level/ServerChunkCache.java
++++ b/src/main/java/net/minecraft/server/level/ServerChunkCache.java
+@@ -947,7 +947,7 @@ public class ServerChunkCache extends ChunkSource {
+         this.lastInhabitedUpdate = i;
+         LevelData worlddata = this.level.getLevelData();
+         boolean flag = this.level.isDebug();
+-        boolean flag1 = this.level.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING) && !this.level.players().isEmpty(); // CraftBukkit
++        boolean flag1 = this.level.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING) && !this.level.players().isEmpty() && !this.level.instanced; // Papyrus - don't tick mob spawning in instanced worlds
+ 
+         if (!flag) {
+             // Paper start - optimize isOutisdeRange
+diff --git a/src/main/java/net/minecraft/server/level/ServerLevel.java b/src/main/java/net/minecraft/server/level/ServerLevel.java
+index b0890b4938d9c1f1231612c46ed3979de8ff7046..5bb67966473983f7fd799beb586d839e349ecd86 100644
+--- a/src/main/java/net/minecraft/server/level/ServerLevel.java
++++ b/src/main/java/net/minecraft/server/level/ServerLevel.java
+@@ -198,6 +198,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+     // Tuinity start - execute chunk tasks mid tick
+     public long lastMidTickExecuteFailure;
+     // Tuinity end - execute chunk tasks mid tick
++    public boolean instanced = false; // Papyrus - instanced worlds
+ 
+     // CraftBukkit start
+     private int tickPosition;
+@@ -546,7 +547,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+         int i;
+ 
+         if (this.dimensionType().hasSkyLight()) {
+-            if (this.getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE)) {
++            if (this.getGameRules().getBoolean(GameRules.RULE_WEATHER_CYCLE) && !this.instanced) {
+                 i = this.serverLevelData.getClearWeatherTime();
+                 int j = this.serverLevelData.getThunderTime();
+                 int k = this.serverLevelData.getRainTime();
+@@ -650,7 +651,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+         // CraftBukkit end
+ 
+         i = this.getGameRules().getInt(GameRules.RULE_PLAYERS_SLEEPING_PERCENTAGE);
+-        if (this.sleepStatus.areEnoughSleeping(i) && this.sleepStatus.areEnoughDeepSleeping(i, this.players)) {
++        if (this.sleepStatus.areEnoughSleeping(i) && this.sleepStatus.areEnoughDeepSleeping(i, this.players) && !this.instanced) {
+             // CraftBukkit start
+             long l = this.levelData.getDayTime() + 24000L;
+             TimeSkipEvent event = new TimeSkipEvent(this.getWorld(), TimeSkipEvent.SkipReason.NIGHT_SKIP, (l - l % 24000L) - this.getDayTime());
+@@ -771,6 +772,9 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+     }
+ 
+     public void tickCustomSpawners(boolean spawnMonsters, boolean spawnAnimals) {
++        if (instanced) {
++            return; // Papyrus - don't spawn phantoms, village raids or patrols in instanced worlds
++        }
+         Iterator iterator = this.customSpawners.iterator();
+ 
+         while (iterator.hasNext()) {
+@@ -1128,6 +1132,9 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+ 
+     // Paper start - derived from below
+     public void saveIncrementally(boolean doFull) {
++        if (instanced) {
++            return; // Papyrus - don't save instanced worlds
++        }
+         ServerChunkCache chunkproviderserver = this.getChunkSource();
+ 
+         if (doFull) {
+@@ -1158,6 +1165,9 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+     // Paper end
+ 
+     public void save(@Nullable ProgressListener progressListener, boolean flush, boolean flag1) {
++        if (instanced) {
++            return; // Papyrus - don't save instanced worlds
++        }
+         ServerChunkCache chunkproviderserver = this.getChunkSource();
+ 
+         if (!flag1) {
+@@ -1797,7 +1807,7 @@ public class ServerLevel extends net.minecraft.world.level.Level implements Worl
+ 
+         this.levelData.setSpawn(pos, angle);
+         new org.bukkit.event.world.SpawnChangeEvent(getWorld(), MCUtil.toLocation(this, prevSpawn)).callEvent(); // Paper
+-        if (this.keepSpawnInMemory) {
++        if (this.keepSpawnInMemory || this.instanced) {
+             // if this keepSpawnInMemory is false a plugin has already removed our tickets, do not re-add
+             this.removeTicketsForSpawn(this.paperConfig.keepLoadedRange, prevSpawn);
+             this.addTicketsForSpawn(this.paperConfig.keepLoadedRange, pos);
+diff --git a/src/main/java/net/minecraft/world/entity/raid/Raids.java b/src/main/java/net/minecraft/world/entity/raid/Raids.java
+index 45e369aa69a6b78def42b619b1b1b8259d4b30ea..2064c230de36704a1702e7a1d713f0766783361f 100644
+--- a/src/main/java/net/minecraft/world/entity/raid/Raids.java
++++ b/src/main/java/net/minecraft/world/entity/raid/Raids.java
+@@ -44,6 +44,9 @@ public class Raids extends SavedData {
+     }
+ 
+     public void tick() {
++        if (this.level.instanced) {
++            return; // Papyrus - don't tick raids for instanced worlds
++        }
+         ++this.tick;
+         Iterator iterator = this.raidMap.values().iterator();
+ 
+diff --git a/src/main/java/org/bukkit/craftbukkit/CraftServer.java b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+index b0529f607e4e0654bf54bb1304395d7d3e20b6c3..3c22349324c11bc6355f607d987d7e7db140692c 100644
+--- a/src/main/java/org/bukkit/craftbukkit/CraftServer.java
++++ b/src/main/java/org/bukkit/craftbukkit/CraftServer.java
+@@ -1081,6 +1081,11 @@ public final class CraftServer implements Server {
+ 
+     @Override
+     public World createWorld(WorldCreator creator) {
++        return createWorld(creator, false);
++    }
++
++    @Override
++    public World createWorld(WorldCreator creator, boolean instanced) {
+         Preconditions.checkState(!console.levels.isEmpty(), "Cannot create additional worlds on STARTUP");
+         Validate.notNull(creator, "Creator may not be null");
+ 
+@@ -1182,11 +1187,12 @@ public final class CraftServer implements Server {
+         ServerLevel internal = (ServerLevel) new ServerLevel(this.console, console.executor, worldSession, worlddata, worldKey, dimensionmanager, this.getServer().progressListenerFactory.create(11),
+                 chunkgenerator, worlddata.worldGenSettings().isDebug(), j, creator.environment() == Environment.NORMAL ? list : ImmutableList.of(), true, creator.environment(), generator);
+ 
++        internal.instanced = instanced; // Papyrus - instanced worlds
+         if (!(this.worlds.containsKey(name.toLowerCase(java.util.Locale.ENGLISH)))) {
+             return null;
+         }
+ 
+-        this.console.initWorld(internal, worlddata, worlddata, worlddata.worldGenSettings());
++        this.console.initWorld(internal, worlddata, worlddata, worlddata.worldGenSettings(), instanced);
+ 
+         internal.setSpawnSettings(true, true);
+         console.levels.put(internal.dimension(), internal);

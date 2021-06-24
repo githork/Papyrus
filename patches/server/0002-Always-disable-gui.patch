@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Malfrador <malfrador@gmail.com>
+Date: Wed, 23 Jun 2021 21:32:13 +0200
+Subject: [PATCH] Always disable gui
+
+
+diff --git a/src/main/java/net/minecraft/server/Main.java b/src/main/java/net/minecraft/server/Main.java
+index 9d5f17e0d350d7a792a11e399b5cfb3f25db6fef..16df6d2f441826f369f054562ec282dc2f766360 100644
+--- a/src/main/java/net/minecraft/server/Main.java
++++ b/src/main/java/net/minecraft/server/Main.java
+@@ -237,13 +237,13 @@ public class Main { //
+                 dedicatedserver1.setPort((Integer) optionset.valueOf(optionspec11));
+                 dedicatedserver1.c(optionset.has(optionspec2));
+                 dedicatedserver1.b((String) optionset.valueOf(optionspec12));
+-                */
++
+                 boolean flag1 = !optionset.has("nogui") && !optionset.nonOptionArguments().contains("nogui");
+ 
+                 if(!Boolean.parseBoolean(System.getenv().getOrDefault("PAPER_DISABLE_SERVER_GUI", String.valueOf(false)))) // Paper
+                 if (flag1 && !GraphicsEnvironment.isHeadless()) {
+                     dedicatedserver1.showGui();
+-                }
++                } Papyrus - Always disable GUI*/
+ 
+                 if (optionset.has("port")) {
+                     int port = (Integer) optionset.valueOf("port");
