@@ -6,6 +6,6 @@ pluginManagement {
   }
 }
 
-rootProject.name = "Byof"
+rootProject.name = "Papyrus"
 
-include("Byof-API", "Byof-Server")
+include("Papyrus-API", "Papyrus-Server")

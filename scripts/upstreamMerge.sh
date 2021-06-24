@@ -4,7 +4,7 @@
 set -e
 PS1="$"
 basedir="$(cd "$1" && pwd -P)"
-workdir="$basedir/work"
+workdir="$basedir/.gradle/caches/paperweight/upstreams/"
 gitcmd="git -c commit.gpgsign=false"
 
 updated="0"

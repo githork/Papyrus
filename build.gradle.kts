@@ -41,7 +41,7 @@ subprojects {
 }
 
 paperweight {
-  serverProject.set(project(":Byof-Server"))
+  serverProject.set(project(":Papyrus-Server"))
 
   useStandardUpstream("tuinity") {
     url.set(github("Tuinity", "Tuinity"))
@@ -50,8 +50,8 @@ paperweight {
     withStandardPatcher {
       baseName("Tuinity")
 
-      apiOutputDir.set(layout.projectDirectory.dir("Byof-API"))
-      serverOutputDir.set(layout.projectDirectory.dir("Byof-Server"))
+      apiOutputDir.set(layout.projectDirectory.dir("Papyrus-API"))
+      serverOutputDir.set(layout.projectDirectory.dir("Papyrus-Server"))
     }
   }
 }
